@@ -1,6 +1,6 @@
 {
   "name": "goatlogger",
-  "description": "A nice greeter",
+  "description": "Logging library for non-human",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "author": "Samuel Mothwa",
@@ -24,7 +24,7 @@
   },
   "prepare": "npm run build",
   "prepublishOnly": "npm test && npm run lint",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "postversion": "git push && git push --tags",
   "files": [
     "lib/**/*"
