@@ -20,7 +20,7 @@
   },
   "prepare": "npm run build",
   "prepublishOnly": "npm test && npm run lint",
-  "preversion": "1.0.0",
+  "version": "npm run format && git add -A src",
   "postversion": "git push && git push --tags",
   "files": [
     "lib/**/*"
