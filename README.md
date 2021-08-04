@@ -25,9 +25,9 @@ Simple logging library
     })
 ```
 
+Namespace logging
 ### Middleware
 
-Use ``log`` for the middleware
 
 ```js
     import { Request, Response, NextFunction} from 'express';
@@ -40,7 +40,7 @@ Use ``log`` for the middleware
     const statusCode = res.statusCode;
     const url = req.protocol + '://' + req.get('host') + req.originalUrl;
     response.on('finish', () => {
-        BasicLogger.log(method , IP, url, {});
+        BasicLogger.log(method , IP, url);
     });
 
     next();
