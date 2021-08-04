@@ -28,5 +28,9 @@
   "postversion": "git push && git push --tags",
   "files": [
     "lib/**/*"
-  ]
+  ],
+  "bugs": {
+    "url": "https://github.com/Northern-Breeze/GoatLogger/issues"
+  },
+  "homepage": "https://github.com/Northern-Breeze/GoatLogger#readme"
 }
