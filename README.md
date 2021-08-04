@@ -2,42 +2,49 @@
 Simple logging library
 
 ## Install
-> npm
+
+##### npm
+
 ```bash
     $ npm install goatlogger
 ```
-> yarn
+#### yarn
 ```bash
     $ yarn add goatlogger
 ```
 
 ## How to use
+
+### Directly in controllers or routes handlers
 ```js
-    const { BasicLogger } = require('goatlogger');
-        ...
-    app.use((req, res, next) => {
-    /** Log the request */
-    BasicLogger.log(req.method, 0, req.socket.remoteAddress , req.protocol + '://' + req.get('host') + req.originalUrl, {});
-    response.on('finish', () => {
-        /** Log the response */
-        BasicLogger.log(request.method, res.statusCode, req.socket.remoteAddress , req.protocol + '://' + req.get('host') + req.originalUrl, {});
-    });
-    next();
+    import { BasicLogger } from 'goatlogger';
+
+    app.get('/foo', (req, res) => {
+        BasicLogger.info('foo', { someKey: 'SomeValue' }) // the object is optional
+        res.send('from foo)
     })
 ```
 
-## How to use es module
-log request response middleware
+### Middleware
+
+Use ``log`` for the middleware
+
 ```js
+    import { Request, Response, NextFunction} from 'express';
     import { BasicLogger } from 'goatlogger';
-    ...
-    app.use((req, res, next) => {
+
+    const loggerMiddleware = ((req: Request, res: Response, next: NextFunction) => {
     /** Log the request */
-    BasicLogger.log(req.method, 0, req.socket.remoteAddress , req.protocol + '://' + req.get('host') + req.originalUrl, {});
+    const method = request.method;
+    const IP = req.socket.remoteAddress;
+    const statusCode = res.statusCode;
+    const url = req.protocol + '://' + req.get('host') + req.originalUrl;
     response.on('finish', () => {
-        /** Log the response */
-        BasicLogger.log(request.method, res.statusCode, req.socket.remoteAddress , req.protocol + '://' + req.get('host') + req.originalUrl, {});
+        BasicLogger.log(method , IP, url, {});
     });
+
     next();
+
     })
+    export default loggerMiddleware;
 ```
