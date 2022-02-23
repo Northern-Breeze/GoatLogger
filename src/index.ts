@@ -8,7 +8,7 @@ export class BasicLogger {
     statusCode: any | number,
     ip: string | undefined,
     url: string,
-    namespace: string,
+    namespace?: string,
     object?: any
   ): void {
     if (object && namespace) {
