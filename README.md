@@ -84,19 +84,6 @@ logger.info('Request handled', { path: '/api/orders', status: 200 })
 logger.fatal('Uncaught exception', { stack: '...' })
 ```
 
-### Local-only usage (no remote server)
-
-Omit `endpoint` entirely and GoatLogger runs in local-only mode: logs are written to the
-console only — no batching, retries, dead-letter queue, or network activity at all.
-
-```ts
-import { createLogger } from 'goatlogger/node'
-
-const logger = createLogger({ service: 'cli-tool' })
-
-logger.info('Doing local-only stuff', { pid: process.pid })
-```
-
 ### Hono / Next.js middleware example
 
 ```ts
@@ -175,7 +162,7 @@ npm install ws
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `endpoint` | `string` | — | HTTP ingest URL. Omit entirely for local-only mode (console output only, no network) |
+| `endpoint` | `string` | required | HTTP ingest URL. `logger.*()` calls still return instantly, but a batch send without a reachable `endpoint` will exhaust retries and dead-letter |
 | `wsEndpoint` | `string` | — | WebSocket ingest URL |
 | `transport` | `'http'\|'ws'\|'auto'` | `'http'` | Transport strategy |
 | `service` | `string` | required | Service name tag |
@@ -201,7 +188,10 @@ npm install ws
 
 ### Install & run
 
+The ingest server lives in its own repo, [`goatlogger/server`](https://github.com/goatlogger/server) — clone it separately:
+
 ```bash
+git clone https://github.com/goatlogger/server
 cd server
 bun install
 cp .env.example .env   # fill in DATABASE_URL, REDIS_URL, etc.
@@ -266,7 +256,7 @@ Fits naturally as a Railway or Fly.io service alongside your existing stack.
 
 ### Railway
 
-1. Point Railway at `server/` directory
+1. Point Railway at the [`goatlogger/server`](https://github.com/goatlogger/server) repo
 2. Set env vars: `DATABASE_URL`, `REDIS_URL`, `GOATLOGGER_AUTH_TOKEN`
 3. Start command: `bun run start`
 
@@ -289,9 +279,12 @@ primary_region = "jnb"
 
 ## Project Structure
 
+This repo (`github.com/goatlogger/sdk`) contains the client SDK only. The ingest server
+is a separate repo — see [Server Setup](#server-setup) below.
+
 ```
-goatlogger/
-├── src/                    # SDK source
+sdk/
+├── src/
 │   ├── core/
 │   │   ├── types.ts        # Shared types & interfaces
 │   │   ├── queue.ts        # Batching queue
@@ -308,36 +301,30 @@ goatlogger/
 │   └── platforms/
 │       ├── browser.ts      # Browser entry (beacon + unload hooks)
 │       └── node.ts         # Node/Bun entry (process exit hooks, ws compat)
-├── server/                 # Ingest server
-│   └── src/
-│       ├── db/             # Drizzle schema + client + migrations
-│       ├── queues/         # BullMQ queue definition
-│       ├── routes/
-│       │   ├── ingest.ts   # POST /ingest HTTP route
-│       │   └── ws.ts       # WS /ws handler (auth, ping/pong, ACK)
-│       ├── workers/        # Log enrichment + Postgres writer
-│       └── index.ts        # Bun server — HTTP (Hono) + WS side by side
+├── examples/
+│   └── smoke.ts             # Wire smoke test against a running server
+├── dist/                    # Build output (tsup) — browser ESM, node ESM + CJS
 ├── package.json
 └── tsup.config.ts
 ```
 
+### Example: one auto-transport config, browser + node
 
-Usage
-```
+```ts
 // Long-running Node service — prefers WS, falls back to HTTP automatically
 const logger = createLogger({
-  endpoint:   'https://logs.wanko.co.za/ingest',
-  wsEndpoint: 'wss://logs.wanko.co.za/ws',
+  endpoint:   'https://logs.yourapp.com/ingest',
+  wsEndpoint: 'wss://logs.yourapp.com/ws',
   transport:  'auto',
-  service:    'wanko-api',
+  service:    'my-api',
   authToken:  process.env.LOG_TOKEN,
 })
 
 // Browser SPA — same API, same config
 const logger = createLogger({
-  endpoint:   'https://logs.wanko.co.za/ingest',
-  wsEndpoint: 'wss://logs.wanko.co.za/ws',
+  endpoint:   'https://logs.yourapp.com/ingest',
+  wsEndpoint: 'wss://logs.yourapp.com/ws',
   transport:  'auto',   // WS while tab is open, HTTP on unload
-  service:    'wanko-web',
+  service:    'my-web',
 })
 ```
