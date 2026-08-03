@@ -1,10 +1,14 @@
 {
   "name": "@northern-breeze/goatlogger",
   "description": "Async, non-blocking logger SDK with remote ingest, automatic batching, exponential-backoff retry, and a dead-letter queue.",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "type": "module",
   "publishConfig": {
       "access": "public"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/Northern-Breeze/GoatLogger.git"
     },
   "exports": {
     "./browser": "./dist/platforms/browser.js",
@@ -18,7 +22,7 @@
   "private": false,
   "repository": {
     "type": "git",
-    "url": "https://github.com/Northern-Breeze/GoatLogger"
+    "url": "git+https://github.com/Northern-Breeze/GoatLogger.git"
   },
   "devDependencies": {
     "@types/bun": "latest",
