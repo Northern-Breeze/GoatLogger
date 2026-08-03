@@ -24,11 +24,13 @@ export function withBeaconFallback(
         return false;
       }
 
-      // sendBeacon can't set an Authorization header, so carry the token in the payload —
-      // the server's /ingest route accepts it as a fallback when no Bearer header is present.
-      const payload = authToken ? { ...batch, authToken } : batch;
-      const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
-      return navigator.sendBeacon(endpoint, blob);
+      // sendBeacon can't set an Authorization header, so carry the token as a query
+      // param — the wire payload itself must stay exactly { entries, sentAt }.
+      const url = authToken
+        ? `${endpoint}${endpoint.includes("?") ? "&" : "?"}token=${encodeURIComponent(authToken)}`
+        : endpoint;
+      const blob = new Blob([JSON.stringify(batch)], { type: "application/json" });
+      return navigator.sendBeacon(url, blob);
     },
   };
 }

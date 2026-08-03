@@ -8,11 +8,6 @@ import type { GoatLoggerConfig } from "../core/types";
 export type { GoatLoggerConfig, LogEntry, LogLevel, LogBatch, TransportMode } from "../core/types";
 
 export function createLogger(config: GoatLoggerConfig): GoatLogger {
-  if (!config.endpoint) {
-    // Local-only mode: console output only, no network/batching/persistence.
-    return new GoatLogger({ config, platform: "browser" });
-  }
-
   const auto = createAutoTransport({ config });
 
   // Wrap with beacon fallback for last-gasp HTTP delivery on page close
@@ -39,7 +34,7 @@ export function createLogger(config: GoatLoggerConfig): GoatLogger {
 
   if (typeof window !== "undefined") {
     window.addEventListener("beforeunload", () => {
-      const entries = logger.drainForBeacon();
+      const entries = logger.flushAll();
       if (entries.length > 0) {
         beaconWrapped.beacon({ entries, sentAt: new Date().toISOString() });
       }

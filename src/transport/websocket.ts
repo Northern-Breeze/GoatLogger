@@ -83,7 +83,7 @@ export class WsTransport implements Transport {
     return new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingAcks.delete(batchId);
-        reject(new Error(`ACK timeout for batch ${batchId}`));
+        reject(new Error(`[goatlogger] ACK timeout for batch ${batchId}`));
       }, this.ackTimeout);
 
       this.pendingAcks.set(batchId, { resolve, reject, timer });
@@ -123,7 +123,7 @@ export class WsTransport implements Transport {
 
         this.startHeartbeat();
         this.onConnect?.();
-        if (!this.silent) console.log("[goatlogger:ws] connected");
+        if (!this.silent) console.log("[goatlogger] ws connected");
       };
 
       ws.onmessage = (event) => {
@@ -136,7 +136,7 @@ export class WsTransport implements Transport {
 
       ws.onerror = () => {
         // onerror is always followed by onclose — handle there
-        if (!this.silent) console.warn("[goatlogger:ws] socket error");
+        if (!this.silent) console.warn("[goatlogger] ws socket error");
       };
     } catch (err) {
       this.handleDisconnect(`connect threw: ${String(err)}`);
@@ -161,7 +161,7 @@ export class WsTransport implements Transport {
     } else if (frame.type === "pong") {
       // heartbeat acknowledged — connection is alive
     } else if (frame.type === "error") {
-      if (!this.silent) console.error("[goatlogger:ws] server error:", frame.message);
+      if (!this.silent) console.error("[goatlogger] ws server error:", frame.message);
     }
   }
 
@@ -173,7 +173,7 @@ export class WsTransport implements Transport {
     // Reject all pending ACKs so callers can retry via dead-letter
     for (const [id, pending] of this.pendingAcks) {
       clearTimeout(pending.timer);
-      pending.reject(new Error(`WS disconnected: ${reason}`));
+      pending.reject(new Error(`[goatlogger] ws disconnected: ${reason}`));
       this.pendingAcks.delete(id);
     }
 
@@ -187,7 +187,7 @@ export class WsTransport implements Transport {
       this.reconnectAttempt++;
 
       if (!this.silent) {
-        console.warn(`[goatlogger:ws] ${reason} — reconnecting in ${delay}ms`);
+        console.warn(`[goatlogger] ws ${reason} — reconnecting in ${delay}ms`);
       }
 
       this.reconnectTimer = setTimeout(() => this.connect(), delay);
@@ -220,7 +220,7 @@ export class WsTransport implements Transport {
     }
     return new Promise((resolve, reject) => {
       const deadline = setTimeout(
-        () => reject(new Error("WS not ready — transport unavailable")),
+        () => reject(new Error("[goatlogger] ws not ready — transport unavailable")),
         this.ackTimeout
       );
       const poll = setInterval(() => {

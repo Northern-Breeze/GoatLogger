@@ -1,4 +1,4 @@
-import type { LogEntry } from "./types";
+import type { LogEntry, Persistence } from "./types";
 
 export interface BatchQueueOptions {
   /** Flush when the buffer reaches this many entries */
@@ -6,6 +6,8 @@ export interface BatchQueueOptions {
   /** Flush a partial buffer after this many ms */
   flushInterval: number;
   onFlush: (entries: LogEntry[]) => void;
+  /** Checked once on construction; any recovered entries are prepended to the queue. */
+  deadLetter?: Persistence;
 }
 
 export class BatchQueue {
@@ -21,6 +23,11 @@ export class BatchQueue {
     this.batchSize = opts.batchSize;
     this.flushInterval = opts.flushInterval;
     this.onFlush = opts.onFlush;
+
+    const recoverable = opts.deadLetter?.size() ?? 0;
+    if (opts.deadLetter && recoverable > 0) {
+      this.buffer.push(...opts.deadLetter.dequeue(recoverable));
+    }
   }
 
   add(entry: LogEntry): void {
@@ -43,15 +50,10 @@ export class BatchQueue {
     this.onFlush(batch);
   }
 
-  destroy(): void {
-    this.flush();
+  /** Stops the timer and synchronously returns all remaining buffered entries. */
+  flushAll(): LogEntry[] {
+    this.clearTimer();
     this.destroyed = true;
-    this.clearTimer();
-  }
-
-  /** Synchronously empty the buffer without routing through onFlush — for beacon-on-unload use. */
-  drain(): LogEntry[] {
-    this.clearTimer();
     const batch = this.buffer;
     this.buffer = [];
     return batch;

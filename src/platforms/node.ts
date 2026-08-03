@@ -6,36 +6,30 @@ import type { GoatLoggerConfig } from "../core/types";
 export type { GoatLoggerConfig, LogEntry, LogLevel, LogBatch, TransportMode } from "../core/types";
 
 export function createLogger(config: GoatLoggerConfig): GoatLogger {
-  let transport: ReturnType<typeof createAutoTransport> | undefined;
-  let persistence: ReturnType<typeof createMemoryPersistence> | undefined;
+  // Node <22 doesn't have globalThis.WebSocket — inject undici's or ws package if needed
+  // Bun has WebSocket natively so this just works
+  let wsFactory: ((url: string) => WebSocket) | undefined;
 
-  if (config.endpoint) {
-    // Node <22 doesn't have globalThis.WebSocket — inject undici's or ws package if needed
-    // Bun has WebSocket natively so this just works
-    let wsFactory: ((url: string) => WebSocket) | undefined;
-
-    if (typeof WebSocket === "undefined") {
-      // Try to load 'ws' package at runtime without hard dep
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { WebSocket: NodeWS } = require("ws");
-        wsFactory = (url) => new NodeWS(url) as unknown as WebSocket;
-        if (!config.silent) {
-          console.log("[goatlogger] using 'ws' package for WebSocket");
-        }
-      } catch {
-        if (!config.silent && (config.transport === "ws" || config.transport === "auto")) {
-          console.warn(
-            "[goatlogger] WebSocket unavailable on this Node version. " +
-              "Install 'ws' package or upgrade to Node 22+. Falling back to HTTP."
-          );
-        }
+  if (typeof WebSocket === "undefined") {
+    // Try to load 'ws' package at runtime without hard dep
+    try {
+      const { WebSocket: NodeWS } = require("ws");
+      wsFactory = (url) => new NodeWS(url) as unknown as WebSocket;
+      if (!config.silent) {
+        console.log("[goatlogger] using 'ws' package for WebSocket");
+      }
+    } catch {
+      if (!config.silent && (config.transport === "ws" || config.transport === "auto")) {
+        console.warn(
+          "[goatlogger] WebSocket unavailable on this Node version. " +
+            "Install 'ws' package or upgrade to Node 22+. Falling back to HTTP."
+        );
       }
     }
-
-    transport = createAutoTransport({ config, wsFactory });
-    persistence = createMemoryPersistence();
   }
+
+  const transport = createAutoTransport({ config, wsFactory });
+  const persistence = createMemoryPersistence();
 
   const logger = new GoatLogger({
     config,

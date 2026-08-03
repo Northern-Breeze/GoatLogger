@@ -19,12 +19,8 @@ export interface LogBatch {
 export type TransportMode = "http" | "ws" | "auto";
 
 export interface GoatLoggerConfig {
-  /**
-   * Remote ingest HTTP endpoint URL.
-   * Omit entirely for local-only mode: logs are written to the console only —
-   * no batching, retry, dead-letter queue, or network activity at all.
-   */
-  endpoint?: string;
+  /** Remote ingest HTTP endpoint URL. Always required. */
+  endpoint: string;
   /** WebSocket ingest endpoint. Required for transport:'ws', optional for 'auto' */
   wsEndpoint?: string;
   /**
