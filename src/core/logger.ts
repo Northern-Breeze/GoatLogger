@@ -9,7 +9,7 @@ import type {
 import { BatchQueue } from "./queue";
 import { withRetry } from "./retry";
 
-const LEVEL_WEIGHT: Record<LogLevel, number> = {
+const LEVEL_RANK: Record<LogLevel, number> = {
   debug: 0,
   info: 1,
   warn: 2,
@@ -17,19 +17,10 @@ const LEVEL_WEIGHT: Record<LogLevel, number> = {
   fatal: 4,
 };
 
-const CONSOLE_METHOD: Record<LogLevel, "debug" | "info" | "warn" | "error"> = {
-  debug: "debug",
-  info: "info",
-  warn: "warn",
-  error: "error",
-  fatal: "error",
-};
-
 export interface GoatLoggerOptions {
   config: GoatLoggerConfig;
-  /** Omit for local-only mode: console output only, no batching/network/persistence */
-  transport?: Transport;
-  persistence?: Persistence;
+  transport: Transport;
+  persistence: Persistence;
   platform: "browser" | "node";
 }
 
@@ -43,12 +34,12 @@ function makeSessionId(): string {
 
 export class GoatLogger {
   private readonly config: GoatLoggerConfig;
-  private readonly transport?: Transport;
-  private readonly persistence?: Persistence;
+  private readonly transport: Transport;
+  private readonly persistence: Persistence;
   private readonly platform: "browser" | "node";
   private readonly minLevel: LogLevel;
   private readonly sessionId = makeSessionId();
-  private readonly queue?: BatchQueue;
+  private readonly queue: BatchQueue;
   private pendingSend: Promise<void> = Promise.resolve();
 
   constructor(opts: GoatLoggerOptions) {
@@ -58,17 +49,14 @@ export class GoatLogger {
     this.platform = opts.platform;
     this.minLevel = opts.config.minLevel ?? "debug";
 
-    // No transport => local-only mode. Console output happens in log(), no
-    // BatchQueue/retry/dead-letter machinery is needed since there's nothing to send.
-    if (this.transport) {
-      this.queue = new BatchQueue({
-        batchSize: opts.config.batchSize ?? 20,
-        flushInterval: opts.config.flushInterval ?? 500,
-        onFlush: (entries) => {
-          this.pendingSend = this.send(entries);
-        },
-      });
-    }
+    this.queue = new BatchQueue({
+      batchSize: opts.config.batchSize ?? 20,
+      flushInterval: opts.config.flushInterval ?? 500,
+      deadLetter: this.persistence,
+      onFlush: (entries) => {
+        this.pendingSend = this.sendBatch(entries);
+      },
+    });
   }
 
   debug(message: string, data?: Record<string, unknown>): void {
@@ -92,7 +80,7 @@ export class GoatLogger {
   }
 
   private log(level: LogLevel, message: string, data?: Record<string, unknown>): void {
-    if (LEVEL_WEIGHT[level] < LEVEL_WEIGHT[this.minLevel]) return;
+    if (LEVEL_RANK[level] < LEVEL_RANK[this.minLevel]) return;
 
     const entry: LogEntry = {
       id: makeId(),
@@ -106,59 +94,55 @@ export class GoatLogger {
     };
 
     if (!this.config.silent) {
-      const method = CONSOLE_METHOD[level];
-      console[method](
-        `[${entry.timestamp}] [${entry.service}] [${level.toUpperCase()}] ${message}`,
-        data ?? ""
-      );
+      const line = `[${entry.timestamp}] [${entry.service}] [${level.toUpperCase()}] ${message}`;
+      if (level === "error" || level === "fatal") {
+        console.error(line, data ?? "");
+      } else if (level === "warn") {
+        console.warn(line, data ?? "");
+      } else {
+        console.log(line, data ?? "");
+      }
     }
 
-    this.queue?.add(entry);
+    this.queue.add(entry);
   }
 
-  private async send(entries: LogEntry[]): Promise<void> {
-    if (!this.transport) return;
+  private async sendBatch(entries: LogEntry[]): Promise<void> {
+    if (entries.length === 0) return;
 
-    // Replay any dead-lettered entries from a prior failed flush alongside this one
-    let outgoing = entries;
-    const deadLetterSize = this.persistence?.size() ?? 0;
-    if (deadLetterSize > 0) {
-      outgoing = [...this.persistence!.dequeue(deadLetterSize), ...entries];
-    }
-    if (outgoing.length === 0) return;
-
-    const batch: LogBatch = { entries: outgoing, sentAt: new Date().toISOString() };
+    const batch: LogBatch = { entries, sentAt: new Date().toISOString() };
 
     try {
-      await withRetry(() => this.transport!.send(batch), {
+      await withRetry(() => this.transport.send(batch), {
         maxRetries: this.config.maxRetries ?? 5,
-        retryDelay: this.config.retryDelay ?? 1000,
+        baseDelay: this.config.retryDelay ?? 1000,
+        onRetry: (attempt, error) => {
+          if (!this.config.silent) {
+            console.warn(`[goatlogger] retry ${attempt} failed: ${error.message}`);
+          }
+        },
       });
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      this.persistence?.enqueue(outgoing);
-      this.config.onDropped?.(outgoing, reason);
+      this.persistence.enqueue(entries);
+      this.config.onDropped?.(entries, reason);
       if (!this.config.silent) {
         console.warn(
-          `[goatlogger] dropped ${outgoing.length} entries after retries: ${reason}`
+          `[goatlogger] dropped ${entries.length} entries after retries: ${reason}`
         );
       }
     }
   }
 
-  async shutdown(): Promise<void> {
-    if (!this.queue) return;
-    this.queue.destroy();
-    await this.pendingSend;
-    this.transport?.flush?.();
+  /** Stops the batch timer and synchronously returns all buffered entries without sending them. */
+  flushAll(): LogEntry[] {
+    return this.queue.flushAll();
   }
 
-  /** Grabs everything currently buffered (queue + dead-letter) without sending it — for beacon-on-unload use. */
-  drainForBeacon(): LogEntry[] {
-    if (!this.queue) return [];
-    const queued = this.queue.drain();
-    const deadLetterSize = this.persistence?.size() ?? 0;
-    const deadLettered = deadLetterSize > 0 ? this.persistence!.dequeue(deadLetterSize) : [];
-    return [...deadLettered, ...queued];
+  async shutdown(): Promise<void> {
+    await this.pendingSend;
+    const remaining = this.flushAll();
+    await this.sendBatch(remaining);
+    this.transport.flush?.();
   }
 }

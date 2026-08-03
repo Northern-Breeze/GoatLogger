@@ -18,7 +18,8 @@ export interface AutoTransportOptions {
  */
 export function createAutoTransport(opts: AutoTransportOptions): Transport {
   const { config, wsFactory } = opts;
-  const mode: TransportMode = config.transport ?? "auto";
+  // Defaults to 'http' if wsEndpoint is omitted, 'auto' if it's provided.
+  const mode: TransportMode = config.transport ?? (config.wsEndpoint ? "auto" : "http");
 
   const http = createHttpTransport(config);
 
@@ -26,11 +27,8 @@ export function createAutoTransport(opts: AutoTransportOptions): Transport {
   if (mode === "http") return http;
 
   if (!config.wsEndpoint) {
-    if (mode === "ws") {
-      throw new Error("[goatlogger] transport:'ws' requires wsEndpoint to be set");
-    }
-    // auto but no wsEndpoint — just use HTTP
-    return http;
+    // mode === "ws" here, since 'auto' with no wsEndpoint already resolved to 'http' above
+    throw new Error("[goatlogger] transport:'ws' requires wsEndpoint to be set");
   }
 
   const ws = createWsTransport({

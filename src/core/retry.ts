@@ -1,8 +1,9 @@
 export interface RetryOptions {
   /** Total number of attempts (not additional retries on top of a first try) */
   maxRetries: number;
-  /** Base delay in ms before the second attempt; doubles each subsequent attempt */
-  retryDelay: number;
+  /** Base delay in ms; doubles per attempt */
+  baseDelay: number;
+  onRetry?: (attempt: number, error: Error) => void;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -17,9 +18,11 @@ export async function withRetry<T>(fn: () => Promise<T>, opts: RetryOptions): Pr
     try {
       return await fn();
     } catch (err) {
-      lastErr = err;
+      const error = err instanceof Error ? err : new Error(String(err));
+      lastErr = error;
       if (attempt === attempts) break;
-      await sleep(opts.retryDelay * 2 ** (attempt - 1));
+      opts.onRetry?.(attempt, error);
+      await sleep(opts.baseDelay * 2 ** attempt + Math.random() * 200);
     }
   }
 
