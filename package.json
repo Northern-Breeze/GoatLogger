@@ -1,5 +1,5 @@
 {
-  "name": "@northern-breeze/goatlogger"
+  "name": "@northern-breeze/goatlogger",
   "description": "Async, non-blocking logger SDK with remote ingest, automatic batching, exponential-backoff retry, and a dead-letter queue.",
   "version": "2.0.1",
   "type": "module",
