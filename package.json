@@ -3,6 +3,9 @@
   "description": "Async, non-blocking logger SDK with remote ingest, automatic batching, exponential-backoff retry, and a dead-letter queue.",
   "version": "2.0.1",
   "type": "module",
+  "publishConfig": {
+      "access": "public"
+    },
   "exports": {
     "./browser": "./dist/platforms/browser.js",
     "./node": {
